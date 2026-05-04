@@ -48,18 +48,15 @@ for i = 1:length(SNR)
     H_eff_r_q_transpose = H_eff_r_q_full.'; % Transposición de H_eff_r_q
     I_matrix = eye(2 * Nt);
     
-    cvx_begin quiet sdp
-        variable Deltao(M_prime_full); 
-        % Maximizar capacidad
-        maximize(1/2 * log_det( eye(2*Nt) + 1/lambda *(sigma_x^2/2) * ((H_eff_r_q_full' * diag(Deltao) * H_eff_r_q_full))));
-        % Restricciones
-        subject to
-            for i_delta = 1:2*Nr
-                Deltao(i_delta) == 1;
-            end
-            0 <= Deltao <= 1;
-            sum(Deltao) == 2*Nr + alpha;
-    cvx_end
+    % Optimización convexa (YALMIP replacement for CVX)
+    Deltao = sdpvar(M_prime_full, 1);
+    objective_matrix = eye(2*Nt) + 1/lambda * (sigma_x^2/2) * (H_eff_r_q_full' * diag(Deltao) * H_eff_r_q_full);
+    constraints = [Deltao(1:2*Nr) == 1, 0 <= Deltao <= 1, sum(Deltao) == 2*Nr + alpha, objective_matrix >= 1e-9 * eye(2*Nt)];
+    diagnostics = optimize(constraints, -0.5 * logdet(objective_matrix), sdpsettings('verbose', 0));
+    if diagnostics.problem ~= 0
+        error('YALMIP optimization failed at i=%d, i_channel=%d. Code=%d, Info=%s', i, i_channel, diagnostics.problem, diagnostics.info);
+    end
+    Deltao = value(Deltao);
     % Seleccionar los índices de los comparadores
     [~, sorted_indices] = maxk(Deltao, 2 * Nr + alpha);
     vector_delta_0 = zeros(M_prime_full, 1);
@@ -103,7 +100,7 @@ B_random = [I_Nr_r; B_prime];
     % Calcular la capacidad con las filas seleccionadas
     %capacity_selected = log2(det(eye(length(selected_indices)) + (H_selected' * H_selected)));
     % Almacenar la capacidad optimizada
-    capacities_optimized(i) = cvx_optval;
+    capacities_optimized(i) = 0.5 * log(det(value(objective_matrix)));
     
     % Mostrar resultados
     disp(['SNR = ', num2str(SNR_dB(i)), ' dB']);
