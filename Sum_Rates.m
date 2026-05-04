@@ -48,18 +48,7 @@ for i = 1:length(SNR)
     H_eff_r_q_transpose = H_eff_r_q_full.'; % Transposición de H_eff_r_q
     I_matrix = eye(2 * Nt);
     
-    cvx_begin quiet sdp
-        variable Deltao(M_prime_full); 
-        % Maximizar capacidad
-        maximize(1/2 * log_det( eye(2*Nt) + 1/lambda *(sigma_x^2/2) * ((H_eff_r_q_full' * diag(Deltao) * H_eff_r_q_full))));
-        % Restricciones
-        subject to
-            for i_delta = 1:2*Nr
-                Deltao(i_delta) == 1;
-            end
-            0 <= Deltao <= 1;
-            sum(Deltao) == 2*Nr + alpha;
-    cvx_end
+    [Deltao, capacities_optimized(i)] = solve_selection_yalmip(M_prime_full, Nr, alpha, Nt, lambda, sigma_x, H_eff_r_q_full);
     % Seleccionar los índices de los comparadores
     [~, sorted_indices] = maxk(Deltao, 2 * Nr + alpha);
     vector_delta_0 = zeros(M_prime_full, 1);
@@ -103,7 +92,7 @@ B_random = [I_Nr_r; B_prime];
     % Calcular la capacidad con las filas seleccionadas
     %capacity_selected = log2(det(eye(length(selected_indices)) + (H_selected' * H_selected)));
     % Almacenar la capacidad optimizada
-    capacities_optimized(i) = cvx_optval;
+    % capacities_optimized(i) returned by solve_selection_yalmip
     
     % Mostrar resultados
     disp(['SNR = ', num2str(SNR_dB(i)), ' dB']);
