@@ -45,18 +45,7 @@ for i = 1:length(SNR)
     H_eff_r_q_transpose = H_eff_r_q_full.'; % Transposición de H_eff_r_q
     I_matrix = eye(2 * Nt);
     
-    cvx_begin quiet sdp
-        variable Delta1(M_prime_full); 
-        % Maximizar capacidad
-        maximize(1/2 * log_det( eye(2*Nt) + 1/lambda *(sigma_x^2/2) * ((H_eff_r_q_full' * diag(Delta1) * H_eff_r_q_full)) ));
-        % Restricciones
-        subject to
-            for i_delta = 1:2*Nr
-                Delta1(i_delta) == 1;
-            end
-            0 <= Delta1 <= 1;
-            sum(Delta1) == 2*Nr + alpha;
-    cvx_end
+    [Delta1, capacities_optimized(i)] = solve_selection_yalmip(M_prime_full, Nr, alpha, Nt, lambda, sigma_x, H_eff_r_q_full);
     % Seleccionar los índices de los comparadores
     [~, sorted_indices] = maxk(Delta1, 2 * Nr + alpha);
     vector_delta_0 = zeros(M_prime_full, 1);
@@ -99,7 +88,7 @@ I_full(i,i_channel) = 1/2 * log2(det(eye(M_prime_full) + pinv(real(C_eta_eff_r_f
     % Calcular la capacidad con las filas seleccionadas
     %capacity_selected = log2(det(eye(length(selected_indices)) + (H_selected' * H_selected)));
     % Almacenar la capacidad optimizada
-    capacities_optimized(i) = cvx_optval;
+    % capacities_optimized(i) returned by solve_selection_yalmip
     
     % Mostrar resultados
     disp(['SNR = ', num2str(SNR_dB(i)), ' dB']);
@@ -134,4 +123,3 @@ ylabel('Capacidad (bits/s/Hz)', 'Interpreter', 'latex')
 grid on;
 title('Capacidad optimizada vs. SNR', 'Interpreter', 'latex');
 legend('show');
-
