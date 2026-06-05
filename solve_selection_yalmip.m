@@ -6,22 +6,11 @@ function [delta_value, objective_value] = solve_selection_yalmip(M_prime_full, N
 
 delta = sdpvar(M_prime_full, 1);
 objective_matrix = eye(2 * Nt) + 1 / lambda * (sigma_x^2 / 2) * (H_eff_r_q_full' * diag(delta) * H_eff_r_q_full);
-constraints = [delta(1:2*Nr) == 1, 0 <= delta <= 1, sum(delta) == 2 * Nr + alpha];
+constraints = [delta(1:2*Nr) == 1, 0 <= delta <= 1, sum(delta) == 2 * Nr + alpha, objective_matrix >= 1e-9 * eye(2 * Nt)];
+diagnostics = optimize(constraints, -0.5 * logdet(objective_matrix), sdpsettings('verbose', 0));
 
-% Avoid LMILAB (unsupported/poor SDP behavior in YALMIP). Try better solvers.
-candidate_solvers = {'mosek', 'sdpt3', 'sedumi', 'sdpnal'};
-diagnostics = [];
-for k = 1:numel(candidate_solvers)
-    ops = sdpsettings('solver', candidate_solvers{k}, 'verbose', 0);
-    diagnostics = optimize(constraints, -0.5 * logdet(objective_matrix), ops);
-    if diagnostics.problem == 0
-        break;
-    end
-end
-
-if isempty(diagnostics) || diagnostics.problem ~= 0
-    error(sprintf(['YALMIP optimization failed (all preferred SDP solvers failed). ' ...
-           'Install/use MOSEK, SDPT3, or SeDuMi. Last code=%d, info=%s'], diagnostics.problem, diagnostics.info));
+if diagnostics.problem ~= 0
+    error('YALMIP optimization failed. Code=%d, Info=%s', diagnostics.problem, diagnostics.info);
 end
 
 delta_value = value(delta);
